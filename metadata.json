@@ -1,0 +1,8 @@
+{
+  "name": "El Calendario de Fútbol de hym_yt",
+  "description": "Calendario interactivo de partidos, horarios de emisión y agenda de directos de fútbol para hym_yt.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
