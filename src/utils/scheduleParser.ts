@@ -57,13 +57,19 @@ function makeShortCode(name: string): string {
   return 'EQP';
 }
 
-export function resolveTeamInfo(name: string, shortCodeHint?: string): TeamInfo {
+export function resolveTeamInfo(
+  name: string,
+  shortCodeHint?: string,
+  logoUrlHint?: string
+): TeamInfo {
   const cleanName = name.trim();
   const lower = cleanName.toLowerCase();
   const presets = Object.values(TEAMS_PRESETS);
 
   const exact = presets.find((p) => p.name.toLowerCase() === lower);
-  if (exact) return exact;
+  if (exact) {
+    return logoUrlHint ? { ...exact, logoUrl: logoUrlHint } : exact;
+  }
 
   const partial = presets.find(
     (p) =>
@@ -73,6 +79,7 @@ export function resolveTeamInfo(name: string, shortCodeHint?: string): TeamInfo 
     return {
       ...partial,
       name: cleanName,
+      ...(logoUrlHint ? { logoUrl: logoUrlHint } : {}),
     };
   }
 
@@ -81,6 +88,7 @@ export function resolveTeamInfo(name: string, shortCodeHint?: string): TeamInfo 
     shortCode: (shortCodeHint || makeShortCode(cleanName)).toUpperCase().slice(0, 3),
     primaryColor: hashColor(cleanName),
     secondaryColor: '#F8FAFC',
+    ...(logoUrlHint ? { logoUrl: logoUrlHint } : {}),
   };
 }
 

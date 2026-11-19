@@ -8,13 +8,20 @@ export type CompetitionId =
 
 export type MatchStatus = 'scheduled' | 'live' | 'finished';
 
-export type CalendarViewMode = 'month' | 'week' | 'list' | 'year';
+export type CalendarViewMode =
+  | 'month'
+  | 'week'
+  | 'list'
+  | 'year'
+  | 'koora'
+  | 'standings';
 
 export interface TeamInfo {
   name: string;
   shortCode: string;
   primaryColor: string;
   secondaryColor: string;
+  logoUrl?: string;
 }
 
 export interface FootballMatch {

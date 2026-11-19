@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { TeamInfo } from '../types/match';
+import { useTeamLogoUrl } from '../utils/teamCrestRegistry';
 
 interface TeamCrestProps {
   team: TeamInfo;
@@ -7,12 +8,37 @@ interface TeamCrestProps {
 }
 
 export const TeamCrest: React.FC<TeamCrestProps> = ({ team, size = 'md' }) => {
+  const resolvedLogoUrl = useTeamLogoUrl(team.name, team.logoUrl);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [resolvedLogoUrl]);
+
   const dimensions =
     size === 'sm'
-      ? 'w-5 h-5 text-[9px]'
+      ? 'w-6 h-6 text-[9px]'
       : size === 'lg'
-        ? 'w-10 h-10 text-xs'
-        : 'w-7 h-7 text-[10px]';
+        ? 'w-11 h-11 text-xs'
+        : 'w-8 h-8 text-[10px]';
+
+  if (resolvedLogoUrl && !imgFailed) {
+    return (
+      <div
+        className={`relative inline-flex items-center justify-center shrink-0 rounded-md overflow-hidden select-none bg-white dark:bg-white/95 border border-slate-200/90 dark:border-slate-700/80 p-0.5 ${dimensions}`}
+        aria-hidden="true"
+      >
+        <img
+          src={resolvedLogoUrl}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+          className="w-full h-full object-contain"
+        />
+      </div>
+    );
+  }
 
   return (
     <div

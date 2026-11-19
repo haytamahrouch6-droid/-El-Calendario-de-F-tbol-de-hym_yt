@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bot,
   Calendar,
+  CalendarPlus,
   ChevronLeft,
   ChevronRight,
   Columns3,
@@ -10,11 +11,17 @@ import {
   Menu,
   Moon,
   Plus,
+  Radio,
   Search,
   Sun,
+  Trophy,
   X,
 } from 'lucide-react';
 import { AllMonthsView } from './components/AllMonthsView';
+import {
+  CalendarSubscribeSection,
+  CalendarSyncModal,
+} from './components/CalendarSubscribeSection';
 import { FeaturedMatchBanner } from './components/FeaturedMatchBanner';
 import { FlashscoreSection } from './components/FlashscoreSection';
 import { ListView } from './components/ListView';
@@ -34,6 +41,7 @@ import {
 } from './components/ProfileModal';
 import { ScheduleRobotModal } from './components/ScheduleRobotModal';
 import { Sidebar } from './components/Sidebar';
+import { StandingsView } from './components/StandingsView';
 import { WeekView } from './components/WeekView';
 import { INITIAL_MATCHES } from './data/initialMatches';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
@@ -55,6 +63,7 @@ import {
   shiftDateKey,
 } from './utils/dateUtils';
 import { areTeamsEquivalent } from './utils/scheduleParser';
+import { loadWorldTeamLogos } from './utils/teamCrestRegistry';
 
 const STORAGE_KEY_MATCHES = 'hym_yt_football_matches_v4';
 const STORAGE_KEY_TZ = 'hym_yt_football_tz_v2';
@@ -108,6 +117,7 @@ export default function App() {
   const [inspectedMatchId, setInspectedMatchId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState<boolean>(false);
   const [robotOpen, setRobotOpen] = useState<boolean>(false);
+  const [calendarSyncOpen, setCalendarSyncOpen] = useState<boolean>(false);
   const [editingMatch, setEditingMatch] = useState<FootballMatch | null>(null);
   const [formDefaultDateKey, setFormDefaultDateKey] = useState<string | null>(
     null
@@ -191,6 +201,10 @@ export default function App() {
     const timer = window.setTimeout(() => setToastMessage(null), 3200);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
+
+  useEffect(() => {
+    loadWorldTeamLogos();
+  }, []);
 
   const showToast = (msg: string) => setToastMessage(msg);
 
@@ -527,7 +541,7 @@ export default function App() {
       handleSelectDateKey(firstDate);
     }
     showToast(
-      `Robot de horarios: ${addedCount} añadidos, ${updatedCount} actualizados`
+      `Robot de partidos: ${addedCount} añadidos, ${updatedCount} actualizados`
     );
   };
 
@@ -559,11 +573,15 @@ export default function App() {
   };
 
   const periodTitle =
-    viewMode === 'year'
-      ? 'Todos los meses · Temporada 2026–27'
-      : viewMode === 'week'
-        ? weekDaysRange
-        : formatMonthTitleEs(currentYear, currentMonthIndex);
+    viewMode === 'standings'
+      ? 'Todas las ligas del mundo · Partidos, días y meses'
+      : viewMode === 'koora'
+        ? 'Koora Live · Partidos en vivo y gratis'
+        : viewMode === 'year'
+          ? 'Todos los meses · Temporada 2026–27'
+          : viewMode === 'week'
+            ? weekDaysRange
+            : formatMonthTitleEs(currentYear, currentMonthIndex);
 
   return (
     <div className="min-h-screen lg:h-screen flex bg-[#F6F7F9] dark:bg-[#0B0F14] text-slate-900 dark:text-slate-100 overflow-hidden">
@@ -594,6 +612,8 @@ export default function App() {
         onExportJson={handleExportJson}
         onResetMatches={handleResetMatches}
         onOpenRobot={() => setRobotOpen(true)}
+        onOpenStandings={() => setViewMode('standings')}
+        onOpenCalendarSync={() => setCalendarSyncOpen(true)}
         isPwaInstalled={isInstalled}
         onOpenInstallModal={handleInstallAction}
         profile={userProfile}
@@ -674,6 +694,18 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setRobotOpen(true)}
+              title="Abrir Robot de partidos · Calendario Flashscore.es"
+              aria-label="Abrir Robot de partidos"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            >
+              <Bot className="w-4 h-4 shrink-0" />
+              <span className="hidden md:inline">Robot de partidos</span>
+              <span className="md:hidden">Robot</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 setEditingMatch(null);
                 setFormDefaultDateKey(selectedDateKey);
@@ -682,7 +714,8 @@ export default function App() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
               <Plus className="w-4 h-4" />
-              <span>Añadir partido</span>
+              <span className="hidden sm:inline">Añadir partido</span>
+              <span className="sm:hidden">Añadir</span>
             </button>
           </div>
         </header>
@@ -794,10 +827,19 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setRobotOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-[#11161D] border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-lg transition-colors whitespace-nowrap shrink-0"
               >
                 <Bot className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                <span>Robot de horarios</span>
+                <span>Robot de partidos</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCalendarSyncOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-[#11161D] border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              >
+                <CalendarPlus className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                <span>Conectar calendario</span>
               </button>
 
               <div
@@ -863,6 +905,36 @@ export default function App() {
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
                   <span>Todos los meses</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === 'koora'}
+                  onClick={() => setViewMode('koora')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    viewMode === 'koora'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Koora Live</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === 'standings'}
+                  onClick={() => setViewMode('standings')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                    viewMode === 'standings'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>Ligas del mundo</span>
                 </button>
               </div>
             </div>
@@ -936,14 +1008,25 @@ export default function App() {
             />
           )}
 
-          {/* Marcadores y horarios en directo · Flashscore.es */}
-          <FlashscoreSection
-            timeZone={timeZone}
-            onImportMatches={handleImportRobotMatches}
-          />
+          {viewMode === 'koora' && (
+            <>
+              <FlashscoreSection
+                timeZone={timeZone}
+                onImportMatches={handleImportRobotMatches}
+              />
+              <LiveChannelsSection />
+            </>
+          )}
 
-          {/* Canales oficiales para ver los partidos */}
-          <LiveChannelsSection />
+          {viewMode === 'standings' && (
+            <StandingsView
+              timeZone={timeZone}
+              onImportMatches={handleImportRobotMatches}
+            />
+          )}
+
+          {/* Suscripción gratuita a Google Calendar, Apple iCal y Outlook */}
+          <CalendarSubscribeSection />
 
           {/* Footer HYM_YT */}
           <footer className="pt-6 pb-2 border-t border-slate-200 dark:border-slate-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
@@ -997,6 +1080,14 @@ export default function App() {
               >
                 Instagram
               </a>
+              <a
+                href="https://www.tiktok.com/@hym_yt?_r=1&_t=ZN-99Akqwhtzl8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors whitespace-nowrap"
+              >
+                TikTok
+              </a>
             </nav>
           </footer>
         </main>
@@ -1036,6 +1127,12 @@ export default function App() {
         timeZone={timeZone}
         onClose={() => setRobotOpen(false)}
         onImportMatches={handleImportRobotMatches}
+      />
+
+      {/* Conectar Aplicación de Calendario Modal */}
+      <CalendarSyncModal
+        open={calendarSyncOpen}
+        onClose={() => setCalendarSyncOpen(false)}
       />
 
       {/* PWA Mobile Install Modal */}

@@ -3,6 +3,7 @@ import {
   Bot,
   CalendarDays,
   Check,
+  ExternalLink,
   Loader2,
   RefreshCw,
   Search,
@@ -23,6 +24,7 @@ import {
   buildMatchFromParsed,
   resolveTeamInfo,
 } from '../utils/scheduleParser';
+import { registerTeamLogos } from '../utils/teamCrestRegistry';
 import { TeamCrest } from './TeamCrest';
 
 interface ScheduleRobotModalProps {
@@ -54,10 +56,17 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
   onImportMatches,
 }) => {
   const [allMatches, setAllMatches] = useState<RobotMatchItem[]>([]);
+  const [full15Matches, setFull15Matches] = useState<RobotMatchItem[] | null>(
+    null
+  );
   const [loading, setLoading] = useState<boolean>(false);
+  const [loading15, setLoading15] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
-  const [selectedDay, setSelectedDay] = useState<string>('today');
+  const [selectedDay, setSelectedDay] = useState<string>('upcoming');
   const [onlyMainLeagues, setOnlyMainLeagues] = useState<boolean>(false);
+  const [competitionFilter, setCompetitionFilter] = useState<
+    'all' | ParsedScheduleMatch['competition']
+  >('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showAllRows, setShowAllRows] = useState<boolean>(false);
@@ -88,6 +97,7 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
       }
 
       const rawList = Array.isArray(data.matches) ? data.matches : [];
+      const logoEntries: Array<{ name: string; logoUrl?: string }> = [];
       const mapped: RobotMatchItem[] = rawList.map(
         (
           m: {
@@ -96,8 +106,10 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
             round: string;
             homeTeamName: string;
             homeShortCode?: string;
+            homeLogoUrl?: string;
             awayTeamName: string;
             awayShortCode?: string;
+            awayLogoUrl?: string;
             kickoffIso: string;
             stadium?: string;
             broadcast?: string;
@@ -110,11 +122,13 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
           },
           index: number
         ) => {
+          if (m.homeLogoUrl) logoEntries.push({ name: m.homeTeamName, logoUrl: m.homeLogoUrl });
+          if (m.awayLogoUrl) logoEntries.push({ name: m.awayTeamName, logoUrl: m.awayLogoUrl });
           const parsed: ParsedScheduleMatch = {
             competition: m.competition || 'otros',
             round: m.round || 'Fútbol internacional',
-            homeTeam: resolveTeamInfo(m.homeTeamName, m.homeShortCode),
-            awayTeam: resolveTeamInfo(m.awayTeamName, m.awayShortCode),
+            homeTeam: resolveTeamInfo(m.homeTeamName, m.homeShortCode, m.homeLogoUrl),
+            awayTeam: resolveTeamInfo(m.awayTeamName, m.awayShortCode, m.awayLogoUrl),
             kickoffIso: m.kickoffIso,
             stadium: m.stadium || 'Por confirmar',
             broadcast: m.broadcast || 'Flashscore.es',
@@ -133,18 +147,115 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
         }
       );
 
+      if (logoEntries.length > 0) registerTeamLogos(logoEntries);
       setAllMatches(mapped);
       setShowAllRows(false);
     } catch (err) {
       setErrorMsg(
         err instanceof Error
           ? err.message
-          : 'Error al consultar el Robot de horarios.'
+          : 'Error al consultar el Robot de partidos.'
       );
     } finally {
       setLoading(false);
     }
   }, [timeZone]);
+
+  const loadAll15Days = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setErrorMsg(
+        'Estás sin conexión a internet. Conéctate para cargar los 15 días de Flashscore.es.'
+      );
+      return;
+    }
+
+    setLoading15(true);
+    setErrorMsg('');
+
+    try {
+      const response = await fetch('/api/flashscore/matches?day=all&filter=all');
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            'No se pudieron cargar los 15 días completos desde Flashscore.es.'
+        );
+      }
+
+      const rawList = Array.isArray(data.matches) ? data.matches : [];
+      const logoEntries: Array<{ name: string; logoUrl?: string }> = [];
+      const mapped: RobotMatchItem[] = rawList.map(
+        (
+          m: {
+            id?: string;
+            competition: ParsedScheduleMatch['competition'];
+            round: string;
+            homeTeamName: string;
+            homeShortCode?: string;
+            homeLogoUrl?: string;
+            awayTeamName: string;
+            awayShortCode?: string;
+            awayLogoUrl?: string;
+            kickoffIso: string;
+            stadium?: string;
+            broadcast?: string;
+            status?: ParsedScheduleMatch['status'];
+            homeScore?: number;
+            awayScore?: number;
+            liveLabel?: string;
+            flashscoreUrl?: string;
+            notes?: string;
+          },
+          index: number
+        ) => {
+          if (m.homeLogoUrl) logoEntries.push({ name: m.homeTeamName, logoUrl: m.homeLogoUrl });
+          if (m.awayLogoUrl) logoEntries.push({ name: m.awayTeamName, logoUrl: m.awayLogoUrl });
+          return {
+            id: m.id || `robot15-${index}-${m.kickoffIso}`,
+            dateKey: getDateKeyInTimezone(m.kickoffIso, timeZone),
+            parsed: {
+              competition: m.competition || 'otros',
+              round: m.round || 'Fútbol internacional',
+              homeTeam: resolveTeamInfo(m.homeTeamName, m.homeShortCode, m.homeLogoUrl),
+              awayTeam: resolveTeamInfo(m.awayTeamName, m.awayShortCode, m.awayLogoUrl),
+              kickoffIso: m.kickoffIso,
+              stadium: m.stadium || 'Por confirmar',
+              broadcast: m.broadcast || 'Flashscore.es',
+              status: m.status,
+              homeScore: m.homeScore,
+              awayScore: m.awayScore,
+              liveLabel: m.liveLabel,
+              flashscoreUrl: m.flashscoreUrl,
+              notes: m.notes,
+            },
+          };
+        }
+      );
+
+      if (logoEntries.length > 0) registerTeamLogos(logoEntries);
+      setFull15Matches(mapped);
+      setShowAllRows(false);
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : 'Error al consultar los 15 días en Flashscore.es.'
+      );
+    } finally {
+      setLoading15(false);
+    }
+  }, [timeZone]);
+
+  const pastDateKeysSet = useMemo(() => {
+    const set = new Set<string>();
+    for (let offset = -7; offset <= -1; offset++) {
+      set.add(shiftDateKey(todayKey, offset));
+    }
+    return set;
+  }, [todayKey]);
+
+  const needsFull15Dataset =
+    selectedDay === 'all15' || pastDateKeysSet.has(selectedDay);
 
   useEffect(() => {
     if (open && allMatches.length === 0 && !loading) {
@@ -152,36 +263,99 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
     }
   }, [open, allMatches.length, loading, loadAllSchedules]);
 
+  useEffect(() => {
+    if (open && needsFull15Dataset && full15Matches === null && !loading15) {
+      loadAll15Days();
+    }
+  }, [open, needsFull15Dataset, full15Matches, loading15, loadAll15Days]);
+
+  const activeSourceMatches = useMemo(() => {
+    if (needsFull15Dataset && full15Matches) {
+      return full15Matches;
+    }
+    return allMatches;
+  }, [needsFull15Dataset, full15Matches, allMatches]);
+
   // Recalculate dateKey if timezone changes while modal stays mounted
   const normalizedMatches = useMemo(() => {
-    return allMatches.map((item) => ({
+    return activeSourceMatches.map((item) => ({
       ...item,
       dateKey: getDateKeyInTimezone(item.parsed.kickoffIso, timeZone),
     }));
-  }, [allMatches, timeZone]);
+  }, [activeSourceMatches, timeZone]);
 
   const baseLeagueFiltered = useMemo(() => {
-    if (!onlyMainLeagues) return normalizedMatches;
-    return normalizedMatches.filter((m) => m.parsed.competition !== 'otros');
-  }, [normalizedMatches, onlyMainLeagues]);
+    return normalizedMatches.filter((m) => {
+      if (onlyMainLeagues && m.parsed.competition === 'otros') return false;
+      if (
+        competitionFilter !== 'all' &&
+        m.parsed.competition !== competitionFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [normalizedMatches, onlyMainLeagues, competitionFilter]);
 
   const dayCounts = useMemo(() => {
     const counts = new Map<string, number>();
     let liveCount = 0;
+    let upcomingCount = 0;
     for (const item of baseLeagueFiltered) {
       if (item.parsed.status === 'live') liveCount += 1;
+      if (item.parsed.status === 'scheduled') upcomingCount += 1;
       counts.set(item.dateKey, (counts.get(item.dateKey) ?? 0) + 1);
     }
-    return { counts, liveCount, total: baseLeagueFiltered.length };
+    return {
+      counts,
+      liveCount,
+      upcomingCount,
+      total: baseLeagueFiltered.length,
+    };
   }, [baseLeagueFiltered]);
 
+  const calendarOptions = useMemo(() => {
+    const opts: Array<{ id: string; label: string }> = [
+      { id: 'upcoming', label: 'Próximos (Hoy a +7d)' },
+      { id: 'live', label: 'En directo ahora' },
+      { id: 'all15', label: 'Calendario completo (-7d a +7d)' },
+    ];
+    for (let offset = -7; offset <= 7; offset++) {
+      const key = shiftDateKey(todayKey, offset);
+      const short = formatShortDateFromKeyEs(key);
+      const prefix =
+        offset === -1
+          ? 'Ayer · '
+          : offset === 0
+            ? 'Hoy · '
+            : offset === 1
+              ? 'Mañana · '
+              : '';
+      opts.push({ id: key, label: `${prefix}${short}` });
+    }
+    return opts;
+  }, [todayKey]);
+
   const dayTabs: DayTabOption[] = useMemo(() => {
+    const yesterdayKey = shiftDateKey(todayKey, -1);
     const tabs: DayTabOption[] = [
       {
         id: 'live',
         label: 'En directo',
         sublabel: 'Ahora',
         count: dayCounts.liveCount,
+      },
+      {
+        id: 'upcoming',
+        label: 'Próximos',
+        sublabel: 'Hoy a +7d',
+        count: dayCounts.upcomingCount,
+      },
+      {
+        id: yesterdayKey,
+        label: 'Ayer',
+        sublabel: formatShortDateFromKeyEs(yesterdayKey),
+        count: full15Matches ? (dayCounts.counts.get(yesterdayKey) ?? 0) : 0,
       },
     ];
 
@@ -200,13 +374,20 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
 
     tabs.push({
       id: 'all',
-      label: 'Todos (7 días)',
-      sublabel: 'Semana',
+      label: 'Todos (8 días)',
+      sublabel: 'Hoy a +7d',
       count: dayCounts.total,
     });
 
+    tabs.push({
+      id: 'all15',
+      label: 'Todos (15 días)',
+      sublabel: '-7d a +7d',
+      count: full15Matches ? full15Matches.length : dayCounts.total,
+    });
+
     return tabs;
-  }, [todayKey, dayCounts]);
+  }, [todayKey, dayCounts, full15Matches]);
 
   const activeDayId = useMemo(() => {
     if (selectedDay === 'today') return todayKey;
@@ -218,7 +399,9 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
     return baseLeagueFiltered.filter((item) => {
       if (activeDayId === 'live') {
         if (item.parsed.status !== 'live') return false;
-      } else if (activeDayId !== 'all') {
+      } else if (activeDayId === 'upcoming') {
+        if (item.parsed.status !== 'scheduled') return false;
+      } else if (activeDayId !== 'all' && activeDayId !== 'all15') {
         if (item.dateKey !== activeDayId) return false;
       }
 
@@ -308,7 +491,7 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Robot de partidos por días"
+        aria-label="Robot de partidos"
         className="relative z-10 w-full max-w-3xl bg-white dark:bg-[#11161D] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden max-h-[90vh] flex flex-col"
       >
         {/* Header */}
@@ -317,30 +500,42 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
             <Bot className="w-5 h-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
             <div className="min-w-0">
               <h2 className="font-display text-base font-semibold text-slate-900 dark:text-white truncate">
-                Robot de partidos por días
+                Robot de partidos · Flashscore.es
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                Elige el día para ver los partidos y horarios
+                Calendario completo (-7 a +7 días) y FutbolHorarios.com
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="https://www.flashscore.es/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap"
+            >
+              <span>Flashscore.es</span>
+              <ExternalLink className="w-3 h-3 shrink-0" />
+            </a>
             <button
               type="button"
-              disabled={loading}
-              onClick={loadAllSchedules}
+              disabled={loading || loading15}
+              onClick={() => {
+                if (needsFull15Dataset) loadAll15Days();
+                else loadAllSchedules();
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap"
             >
               <RefreshCw
-                className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
+                className={`w-3.5 h-3.5 ${loading || loading15 ? 'animate-spin' : ''}`}
               />
               <span>Actualizar</span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Cerrar robot de horarios"
+              aria-label="Cerrar robot de partidos"
               className="p-1.5 rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <X className="w-4 h-4" />
@@ -393,7 +588,7 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
             })}
           </div>
 
-          {/* Buscador + filtros simples */}
+          {/* Buscador + calendario Flashscore.es + filtros */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="relative flex-1">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -408,6 +603,45 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <select
+                value={activeDayId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedDay(val === todayKey ? 'today' : val);
+                  setShowAllRows(false);
+                }}
+                aria-label="Calendario Flashscore.es (-7 a +7 días)"
+                className="px-2.5 py-1.5 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                {calendarOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={competitionFilter}
+                onChange={(e) =>
+                  setCompetitionFilter(
+                    e.target.value as 'all' | ParsedScheduleMatch['competition']
+                  )
+                }
+                aria-label="Filtrar por liga en el robot"
+                className="px-2.5 py-1.5 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="all">Todas las ligas</option>
+                {(
+                  Object.keys(
+                    COMPETITIONS
+                  ) as ParsedScheduleMatch['competition'][]
+                ).map((compId) => (
+                  <option key={compId} value={compId}>
+                    {COMPETITIONS[compId].label}
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 onClick={() => setOnlyMainLeagues((prev) => !prev)}
@@ -419,7 +653,7 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
               >
                 <Star className="w-3.5 h-3.5" />
                 <span>
-                  {onlyMainLeagues ? 'Solo principales' : 'Todas las ligas'}
+                  {onlyMainLeagues ? 'Solo principales' : 'Principales'}
                 </span>
               </button>
 
@@ -429,7 +663,7 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
                 onClick={toggleSelectAllFiltered}
                 className="px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 rounded-lg transition-colors whitespace-nowrap"
               >
-                {allFilteredSelected ? 'Deseleccionar día' : 'Seleccionar día'}
+                {allFilteredSelected ? 'Deseleccionar' : 'Seleccionar visibles'}
               </button>
             </div>
           </div>
@@ -442,7 +676,10 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
               <span>{errorMsg}</span>
               <button
                 type="button"
-                onClick={loadAllSchedules}
+                onClick={() => {
+                  if (needsFull15Dataset) loadAll15Days();
+                  else loadAllSchedules();
+                }}
                 className="px-3 py-1 text-xs font-medium bg-white dark:bg-slate-800 border border-red-200 dark:border-red-700 rounded-md whitespace-nowrap"
               >
                 Reintentar
@@ -450,10 +687,14 @@ export const ScheduleRobotModal: React.FC<ScheduleRobotModalProps> = ({
             </div>
           )}
 
-          {loading ? (
+          {loading || loading15 ? (
             <div className="py-10 flex flex-col items-center justify-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
               <Loader2 className="w-5 h-5 animate-spin text-emerald-700 dark:text-emerald-400" />
-              <span>Cargando partidos de hoy y los próximos 7 días...</span>
+              <span>
+                {loading15
+                  ? 'Cargando los 15 días completos desde Flashscore.es...'
+                  : 'Cargando partidos de hoy y los próximos 7 días...'}
+              </span>
             </div>
           ) : groupedByDay.length === 0 ? (
             <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">

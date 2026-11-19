@@ -289,7 +289,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               Canales oficiales de HYM_YT
             </div>
-            <div className="grid grid-cols-3 border border-slate-200 dark:border-slate-800 rounded-lg divide-x divide-slate-200 dark:divide-slate-800 overflow-hidden">
+            <div className="grid grid-cols-2 sm:grid-cols-4 border border-slate-200 dark:border-slate-800 rounded-lg divide-y sm:divide-y-0 sm:divide-x divide-slate-200 dark:divide-slate-800 overflow-hidden">
               <a
                 href="https://youtube.com/@hym_yt"
                 target="_blank"
@@ -315,6 +315,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors whitespace-nowrap"
               >
                 <span>Instagram</span>
+                <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+              </a>
+              <a
+                href="https://www.tiktok.com/@hym_yt?_r=1&_t=ZN-99Akqwhtzl8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors whitespace-nowrap"
+              >
+                <span>TikTok</span>
                 <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
               </a>
             </div>

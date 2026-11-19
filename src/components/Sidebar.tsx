@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Bookmark,
   Bot,
+  CalendarPlus,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -10,6 +11,7 @@ import {
   Radio,
   RotateCcw,
   Smartphone,
+  Trophy,
   X,
 } from 'lucide-react';
 import { COMPETITIONS } from '../data/initialMatches';
@@ -49,6 +51,8 @@ interface SidebarProps {
   onExportJson: () => void;
   onResetMatches: () => void;
   onOpenRobot: () => void;
+  onOpenStandings: () => void;
+  onOpenCalendarSync: () => void;
   isPwaInstalled: boolean;
   onOpenInstallModal: () => void;
   profile: UserProfile;
@@ -89,6 +93,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onExportJson,
   onResetMatches,
   onOpenRobot,
+  onOpenStandings,
+  onOpenCalendarSync,
   isPwaInstalled,
   onOpenInstallModal,
   profile,
@@ -423,10 +429,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onOpenRobot();
             onCloseMobile();
           }}
+          title="Calendario Flashscore.es · Robot de partidos"
           className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-md transition-colors whitespace-nowrap"
         >
           <Bot className="w-3.5 h-3.5 shrink-0" />
-          <span>Robot de horarios</span>
+          <span>Robot de partidos</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onOpenStandings();
+            onCloseMobile();
+          }}
+          title="Todas las ligas del mundo: partidos, días, meses y clasificación"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap"
+        >
+          <Trophy className="w-3.5 h-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+          <span>Ligas del mundo</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onOpenCalendarSync();
+            onCloseMobile();
+          }}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors whitespace-nowrap"
+        >
+          <CalendarPlus className="w-3.5 h-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+          <span>Sincronizar con tu app</span>
         </button>
         <button
           type="button"
